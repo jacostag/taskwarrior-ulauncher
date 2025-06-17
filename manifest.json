@@ -1,0 +1,54 @@
+{
+  "manifest_version": "2",
+  "name": "Taskwarrior",
+  "description": "A Ulauncher extension for seamless interaction with Taskwarrior, allowing you to manage your tasks directly from the Ulauncher interface.",
+  "developer_name": "Coding Partner Gemini pro 2.5 and a human",
+  "icon": "images/icon.png",
+  "options": {
+    "query_debounce": 0.1
+  },
+  "preferences": [
+    {
+      "id": "task_kw",
+      "type": "keyword",
+      "name": "Add Task",
+      "default_value": "t"
+    },
+    {
+      "id": "task_list_kw",
+      "type": "keyword",
+      "name": "List Tasks",
+      "default_value": "tl"
+    },
+    {
+      "id": "task_start_stop_kw",
+      "type": "keyword",
+      "name": "Start/Stop Task",
+      "default_value": "ts"
+    },
+    {
+      "id": "task_done_kw",
+      "type": "keyword",
+      "name": "Mark Task as Done",
+      "default_value": "td"
+    },
+    {
+      "id": "task_annotate_kw",
+      "type": "keyword",
+      "name": "Annotate Task",
+      "default_value": "ta"
+    },
+    {
+      "id": "task_delete_kw",
+      "type": "keyword",
+      "name": "Delete Task",
+      "default_value": "tdel"
+    },
+    {
+      "id": "task_open_kw",
+      "type": "keyword",
+      "name": "Open Task",
+      "default_value": "to"
+    }
+  ]
+}
