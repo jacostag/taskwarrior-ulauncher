@@ -8,12 +8,12 @@ from ulauncher.api.shared.action.RenderResultListAction import RenderResultListA
 from ulauncher.api.shared.action.HideWindowAction import HideWindowAction
 from ulauncher.api.shared.action.RunScriptAction import RunScriptAction
 
-# It's good practice to set up logging to see what's happening.
-# You can view Ulauncher logs by running `ulauncher -v` in a terminal.
+# Set up logging so we can see what's happening in the Ulauncher logs.
 logging.basicConfig()
 logger = logging.getLogger(__name__)
 
-# A single, simple function to show an error message in Ulauncher.
+# --- Helper Functions (Unchanged) ---
+
 def show_error_item(title, description=""):
     """Creates a Ulauncher item to display an error message."""
     return RenderResultListAction([
@@ -25,37 +25,25 @@ def show_error_item(title, description=""):
         )
     ])
 
-# A function to check if Taskwarrior is installed before we do anything else.
 def is_taskwarrior_installed():
     """Checks if the 'task' command-line tool is available."""
     try:
-        # Use a simple, non-altering command to check.
         subprocess.run(['task', '--version'], capture_output=True, check=True)
         return True
-    except FileNotFoundError:
-        # This error means the 'task' command wasn't found at all.
-        logger.error("The 'task' command was not found.")
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        logger.error("The 'task' command was not found or failed to run.")
         return False
-    except subprocess.CalledProcessError as e:
-        # This means 'task' exists but returned an error. Still a problem.
-        logger.error("Error when calling 'task --version': %s", e)
-        return False
+
+# --- Individual Action Listeners (Unchanged) ---
 
 class AddTaskListener:
     """Handles the 'add task' keyword query."""
     def on_event(self, event, extension):
-        # The text the user typed after the keyword 't'
         task_description = event.get_argument()
-
         if not task_description:
             return show_error_item("Please enter a description for the new task.")
-
-        # This command will be executed in the shell when the user presses Enter.
-        # 'rc.confirmation=off' prevents Taskwarrior from asking "Are you sure?".
+        
         command = f"task rc.confirmation=off add {task_description}"
-
-        # We create a single result item. When the user selects it,
-        # the RunScriptAction will execute our command.
         return RenderResultListAction([
             ExtensionResultItem(
                 icon='images/icon.png',
@@ -68,11 +56,8 @@ class AddTaskListener:
 class ListTasksListener:
     """Handles the 'list tasks' keyword query."""
     def on_event(self, event, extension):
-        # The user can type after 'tl' to filter, e.g., 'tl +projectX'
         filter_args = event.get_argument() or "pending"
-
         try:
-            # 'task export' gives us clean JSON data, which is easy and reliable to work with.
             command = ['task', filter_args, 'export']
             result = subprocess.run(command, capture_output=True, text=True, check=True)
             tasks = json.loads(result.stdout)
@@ -82,8 +67,6 @@ class ListTasksListener:
 
             items = []
             for task in tasks:
-                # For now, selecting a task will just close Ulauncher.
-                # We are not adding sub-menus or other actions yet.
                 items.append(
                     ExtensionResultItem(
                         icon='images/icon.png',
@@ -93,42 +76,46 @@ class ListTasksListener:
                     )
                 )
             return RenderResultListAction(items)
-
         except (subprocess.CalledProcessError, json.JSONDecodeError) as e:
             logger.error("Error parsing Taskwarrior JSON: %s", e)
             return show_error_item("Error running 'task' command.", str(e))
 
+# --- The Fix is Here: A Proper Event Router ---
 
-class TaskwarriorExtension(Extension):
-    """The main extension class."""
+class KeywordQueryEventListener:
+    """
+    This is the main listener object. Ulauncher sends all keyword events here,
+    and this class decides which specialized listener to use.
+    """
     def __init__(self):
-        super().__init__()
-        
-        # Before we set up our listeners, we do a single check.
-        # If Taskwarrior isn't installed, the extension won't do anything.
-        if not is_taskwarrior_installed():
-            logger.error("Taskwarrior is not installed or not in PATH. Extension will not be functional.")
-            # We can't show an item here because no keyword has been typed yet.
-            # The check will run again inside each listener.
-            return
+        # Create an instance of each specialized listener.
+        self.add_listener = AddTaskListener()
+        self.list_listener = ListTasksListener()
 
-        # Map our keywords to our listener classes.
-        self.subscribe(KeywordQueryEvent, self.on_keyword_query)
-        self.add_keyword_listener = AddTaskListener()
-        self.list_keyword_listener = ListTasksListener()
-
-    def on_keyword_query(self, event, extension):
-        # First, a safety check in case the initial one failed.
+    def on_event(self, event, extension):
+        """This is the method Ulauncher will call."""
+        # First, a safety check.
         if not is_taskwarrior_installed():
             return show_error_item("Taskwarrior not found.", "Please ensure 'task' is installed and in your PATH.")
 
-        # Route the event to the correct listener based on the keyword from manifest.json
+        # Get the keyword the user typed (e.g., 't' or 'tl').
         keyword = event.get_keyword()
-        if keyword == self.preferences['add_kw']:
-            return self.add_keyword_listener.on_event(event, extension)
-        elif keyword == self.preferences['list_kw']:
-            return self.list_keyword_listener.on_event(event, extension)
 
+        # Route the event to the correct listener object based on the keyword.
+        if keyword == extension.preferences['add_kw']:
+            return self.add_listener.on_event(event, extension)
+        elif keyword == extension.preferences['list_kw']:
+            return self.list_listener.on_event(event, extension)
+
+# --- Main Extension Class (Now much simpler) ---
+
+class TaskwarriorExtension(Extension):
+    """The main extension class that Ulauncher interacts with."""
+    def __init__(self):
+        super().__init__()
+        # We subscribe an INSTANCE of our new routing class.
+        # This fixes the "AttributeError: 'function' object has no attribute 'on_event'"
+        self.subscribe(KeywordQueryEvent, KeywordQueryEventListener())
 
 if __name__ == '__main__':
     TaskwarriorExtension().run()
