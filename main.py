@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 # Regular expression to check if a string is a valid UUID
 UUID_REGEX = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
 
-
 # --- Helper Functions ---
 
 def show_error_item(title, description=""):
@@ -41,10 +40,12 @@ def is_tool_installed(name):
 class KeywordEventListener:
     """A single, monolithic listener to handle all extension logic for maximum stability."""
 
+    # We now hard-code the internal annotation keyword because it's no longer in the manifest.
+    INTERNAL_ANNOTATE_KEYWORD = "ta"
+
     def on_event(self, event, extension):
         """This one method will route all actions."""
         try:
-            # Check for 'task' tool at the beginning of every event.
             if not is_tool_installed('task'):
                 return show_error_item("Taskwarrior not found.", "Please ensure 'task' is installed and in your PATH.")
 
@@ -55,16 +56,17 @@ class KeywordEventListener:
             if keyword == extension.preferences['add_kw']:
                 return self.handle_add_task(argument)
 
+            # Route 2: Handle the internal annotation keyword
+            elif keyword == self.INTERNAL_ANNOTATE_KEYWORD:
+                return self.handle_annotate_task(argument)
+
             # Route 3: List tasks OR show the action menu
             elif keyword == extension.preferences['list_kw']:
-                # If the argument is a UUID, show the action menu.
                 if UUID_REGEX.match(argument.strip()):
-                    return self.show_action_menu(argument.strip(), extension.preferences)
-                # Otherwise, show the normal task list.
+                    return self.show_action_menu(argument.strip())
                 else:
-                    return self.handle_list_tasks(argument)
+                    return self.handle_list_tasks(argument, extension)
             
-            # Fallback for any other case
             return None
 
         except Exception as e:
@@ -83,7 +85,7 @@ class KeywordEventListener:
     def handle_annotate_task(self, query):
         """Logic to annotate an existing task."""
         if not query or ' ' not in query:
-            return show_error_item("Usage: ta <uuid> <annotation text>")
+            return show_error_item("Usage: <select annotate> <annotation text>")
         uuid, annotation_text = query.split(' ', 1)
         safe_annotation = shlex.quote(annotation_text)
         command = f"task {uuid} annotate {safe_annotation}"
@@ -91,13 +93,12 @@ class KeywordEventListener:
             ExtensionResultItem(icon='images/icon.png', name=f"Add annotation to task {uuid[:8]}...", description=f"Note: '{annotation_text}'", on_enter=RunScriptAction(command))
         ])
 
-    def handle_list_tasks(self, user_filter):
+    def handle_list_tasks(self, user_filter, extension):
         """Logic to fetch and display the list of tasks."""
-        # Use the provided filter or default to "+READY"
         filter_to_use = user_filter or "+READY"
         command = ['task', filter_to_use, 'rc.verbose=nothing', 'export']
         
-        result = subprocess.run(command, capture_output=True, text=True, check=True, timeout=5)
+        result = subprocess.run(command, capture_output=True, text=True, check=True, timeout=10)
         tasks = json.loads(result.stdout)
 
         if not tasks:
@@ -112,24 +113,23 @@ class KeywordEventListener:
             
             display_text = (description[:47] + '...') if len(description) > 50 else description
             
-            # This action sets the query to 'tl <uuid>', which triggers the action menu on the next event.
             items.append(
                 ExtensionResultItem(
                     icon='images/icon.png',
                     name=display_text,
                     description="Press Enter for actions...",
-                    on_enter=SetUserQueryAction(f"tl {uuid}")
+                    on_enter=SetUserQueryAction(f"{extension.preferences['list_kw']} {uuid}")
                 )
             )
         return RenderResultListAction(items)
 
-    def show_action_menu(self, uuid, preferences):
+    def show_action_menu(self, uuid):
         """Logic to generate and show the action menu for a UUID."""
         actions = [
             ExtensionResultItem(icon='images/icon.png', name="Mark as Done", on_enter=RunScriptAction(f"task {uuid} done")),
             ExtensionResultItem(icon='images/icon.png', name="Start Task", on_enter=RunScriptAction(f"task {uuid} start")),
             ExtensionResultItem(icon='images/icon.png', name="Stop Task", on_enter=RunScriptAction(f"task {uuid} stop")),
-            ExtensionResultItem(icon='images/icon.png', name="Annotate Task", on_enter=SetUserQueryAction(f"{preferences['annotate_kw']} {uuid} ")),
+            ExtensionResultItem(icon='images/icon.png', name="Annotate Task", on_enter=SetUserQueryAction(f"{self.INTERNAL_ANNOTATE_KEYWORD} {uuid} ")),
             ExtensionResultItem(icon='images/icon.png', name="Delete Task", on_enter=RunScriptAction(f"task rc.confirmation=off {uuid} delete")),
         ]
         if is_tool_installed('taskopen'):
@@ -141,7 +141,6 @@ class TaskwarriorExtension(Extension):
     """The main extension class."""
     def __init__(self):
         super().__init__()
-        # We subscribe one single, all-powerful listener.
         self.subscribe(KeywordQueryEvent, KeywordEventListener())
 
 if __name__ == '__main__':
