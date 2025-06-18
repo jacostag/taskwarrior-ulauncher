@@ -20,6 +20,13 @@
       "type": "keyword",
       "name": "List Tasks",
       "default_value": "tl"
+    },
+    {
+      "id": "default_filter",
+      "type": "text",
+      "name": "Default Task Filter",
+      "description": "The default filter to use when 'tl' is entered alone (e.g., pending, +READY, project:Home).",
+      "default_value": "+READY"
     }
   ]
 }
