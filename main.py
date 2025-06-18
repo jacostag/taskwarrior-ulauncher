@@ -82,7 +82,7 @@ class KeywordEventListener:
     def handle_list_tasks(self, user_filter, extension):
         """Logic to fetch and display the list of tasks."""
         filter_to_use = user_filter or "+READY"
-        command = ['task', filter_to_use, 'rc.verbose=nothing', 'export']
+        command = ['task', filter_to_use, '+READY', 'rc.verbose=nothing', 'export']
         
         result = subprocess.run(command, capture_output=True, text=True, check=True, timeout=10)
         tasks = json.loads(result.stdout)
