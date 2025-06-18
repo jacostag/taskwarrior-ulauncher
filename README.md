@@ -13,35 +13,12 @@ A Ulauncher extension for seamless interaction with Taskwarrior, allowing you to
 ### List Tasks
 
 - **Keyword:** `tl`
-- **Action:** Displays a list of pending tasks. You can filter by project or tags.
-- **Example:** `tl` or `tl +project`
+- **Action:** Displays a list of pending tasks.
+- **Example:** `tl`
 
-### Start/Stop a Task
-
-- **Keyword:** `ts`
-- **Action:** Toggles the active state of a task.
-- **Example:** `ts 1`
-
-### Mark Task as Done
-
-- **Keyword:** `td`
-- **Action:** Marks a task as completed.
-- **Example:** `td 1`
-
-### Annotate a Task
-
-- **Keyword:** `ta`
-- **Action:** Adds an annotation to an existing task.
-- **Example:** `ta 1 This is an annotation.`
-
-### Delete a Task
-
-- **Keyword:** `tdel`
-- **Action:** Deletes a task.
-- **Example:** `tdel 1`
-
-### Open Task with Annotations
-
-- **Keyword:** `to`
-- **Action:** Opens a task with its annotations in a text editor.
-- **Example:** `to 1`
+After selecting a task
+#### Start a Task
+#### Stop a Task
+#### Mark Task as Done
+#### Delete a Task
+#### Open Task with URL as Annotation
