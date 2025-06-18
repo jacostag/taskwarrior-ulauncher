@@ -1,4 +1,3 @@
-
 import logging
 import subprocess
 import json
@@ -14,6 +13,7 @@ from ulauncher.api.shared.action.SetUserQueryAction import SetUserQueryAction
 # Set up logging so we can see what's happening in the Ulauncher logs.
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
 
 # --- Helper Functions ---
 
@@ -38,6 +38,25 @@ def is_tool_installed(name):
         logger.error("The '%s' command was not found or failed to run.", name)
         return False
 
+def generate_action_menu(uuid, preferences):
+    """
+    (REFACTORED) A standalone function to generate the action menu.
+    This avoids potential issues with passing class instances deep into Ulauncher's state.
+    """
+    actions = [
+        ExtensionResultItem(icon='images/icon.png', name="Mark as Done", description=f"Mark task {uuid[:8]}... as done", on_enter=RunScriptAction(f"task {uuid} done")),
+        ExtensionResultItem(icon='images/icon.png', name="Start Task", description=f"Start tracking task {uuid[:8]}...", on_enter=RunScriptAction(f"task {uuid} start")),
+        ExtensionResultItem(icon='images/icon.png', name="Stop Task", description=f"Stop tracking task {uuid[:8]}...", on_enter=RunScriptAction(f"task {uuid} stop")),
+        ExtensionResultItem(icon='images/icon.png', name="Annotate Task", description=f"Add a note to task {uuid[:8]}...", on_enter=SetUserQueryAction(f"{preferences['annotate_kw']} {uuid} ")),
+        ExtensionResultItem(icon='images/icon.png', name="Delete Task", description=f"Permanently delete task {uuid[:8]}...", on_enter=RunScriptAction(f"task rc.confirmation=off {uuid} delete")),
+    ]
+    
+    if is_tool_installed('taskopen'):
+        actions.append(ExtensionResultItem(icon='images/icon.png', name="Open Task", description=f"Open task {uuid[:8]}... with taskopen", on_enter=RunScriptAction(f"taskopen {uuid}")))
+    
+    return RenderResultListAction(actions)
+
+
 # --- Individual Action Listeners ---
 
 class AddTaskListener:
@@ -57,16 +76,13 @@ class AddTaskListener:
             )
         ])
 
-# --- Replace the existing ListTasksListener with this one for a quick test ---
 class ListTasksListener:
     """
-    A temporary, simplified version to test if task LISTING is the problem.
-    This version disables the action menu.
+    Handles listing tasks and uses the standalone helper to generate the action menu.
     """
     def on_event(self, event, extension):
         user_filter = event.get_argument() or "+READY"
         try:
-            # We are using the command that we know works.
             command = ['task', user_filter, 'rc.verbose=nothing', 'export']
             result = subprocess.run(command, capture_output=True, text=True, check=True)
             tasks = json.loads(result.stdout)
@@ -79,15 +95,17 @@ class ListTasksListener:
                 if not isinstance(task, dict): continue
                 try:
                     description = task['description']
+                    uuid = task['uuid']
                     display_text = (description[:47] + '...') if len(description) > 50 else description
                     
-                    # For this test, we are going back to a simple HideWindowAction.
+                    # Call the standalone function to generate the menu.
+                    # This is a much safer way to handle the on_enter action.
                     items.append(
                         ExtensionResultItem(
                             icon='images/icon.png',
                             name=display_text,
-                            description="Test: This will just close Ulauncher",
-                            on_enter=HideWindowAction()
+                            description="Press Enter for actions...",
+                            on_enter=generate_action_menu(uuid, extension.preferences)
                         )
                     )
                 except KeyError:
@@ -95,11 +113,11 @@ class ListTasksListener:
             
             return RenderResultListAction(items)
         except Exception as e:
-            logger.error("An unexpected error occurred in the TEST ListTasksListener: %s", e, exc_info=True)
+            logger.error("An unexpected error occurred in ListTasksListener: %s", e, exc_info=True)
             return show_error_item("An Unexpected Error Occurred", str(e))
 
 class AnnotateTaskListener:
-    """Handles adding an annotation to a task. (Unchanged and still necessary)"""
+    """Handles adding an annotation to a task. (Unchanged)"""
     def on_event(self, event, extension):
         query = event.get_argument()
         if not query or ' ' not in query:
@@ -118,7 +136,7 @@ class AnnotateTaskListener:
             )
         ])
 
-# --- Main Event Router (Simplified) ---
+# --- Main Event Router ---
 
 class KeywordQueryEventListener:
     """Routes events to the correct listener."""
@@ -128,6 +146,7 @@ class KeywordQueryEventListener:
         self.annotate_listener = AnnotateTaskListener()
 
     def on_event(self, event, extension):
+        # We check for 'task' once at the beginning of any event.
         if not is_tool_installed('task'):
             return show_error_item("Taskwarrior not found.", "Please ensure 'task' is installed and in your PATH.")
 
