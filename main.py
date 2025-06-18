@@ -40,8 +40,6 @@ def is_tool_installed(name):
 class KeywordEventListener:
     """A single, monolithic listener to handle all extension logic for maximum stability."""
 
-    INTERNAL_ANNOTATE_KEYWORD = "ta"
-
     def on_event(self, event, extension):
         """This one method will route all actions."""
         try:
@@ -51,10 +49,11 @@ class KeywordEventListener:
             keyword = event.get_keyword()
             argument = event.get_argument() or ""
 
+            # Route 1: Add a task
             if keyword == extension.preferences['add_kw']:
                 return self.handle_add_task(argument)
-            elif keyword == self.INTERNAL_ANNOTATE_KEYWORD:
-                return self.handle_annotate_task(argument)
+
+            # Route 2: List tasks
             elif keyword == extension.preferences['list_kw']:
                 if UUID_REGEX.match(argument.strip()):
                     return self.show_action_menu(argument.strip())
@@ -76,23 +75,9 @@ class KeywordEventListener:
             ExtensionResultItem(icon='images/icon.png', name=f"Add task: '{description}'", on_enter=RunScriptAction(command))
         ])
 
-    def handle_annotate_task(self, query):
-        """Logic to annotate an existing task."""
-        if not query or ' ' not in query:
-            return show_error_item("Usage: <select annotate> <annotation text>")
-        uuid, annotation_text = query.split(' ', 1)
-        safe_annotation = shlex.quote(annotation_text)
-        command = f"task {uuid} annotate {safe_annotation}"
-        return RenderResultListAction([
-            ExtensionResultItem(icon='images/icon.png', name=f"Add annotation to task {uuid[:8]}...", description=f"Note: '{annotation_text}'", on_enter=RunScriptAction(command))
-        ])
-
     def handle_list_tasks(self, user_filter, extension):
         """Logic to fetch and display the list of tasks."""
-        
-        # Use the user's filter, or fall back to the default from preferences.
         filter_to_use = user_filter or extension.preferences['default_filter']
-        
         command = ['task', filter_to_use, 'rc.verbose=nothing', 'export']
         
         result = subprocess.run(command, capture_output=True, text=True, check=True, timeout=10)
@@ -126,7 +111,6 @@ class KeywordEventListener:
             ExtensionResultItem(icon='images/icon.png', name="Mark as Done", on_enter=RunScriptAction(f"task {uuid} done")),
             ExtensionResultItem(icon='images/icon.png', name="Start Task", on_enter=RunScriptAction(f"task {uuid} start")),
             ExtensionResultItem(icon='images/icon.png', name="Stop Task", on_enter=RunScriptAction(f"task {uuid} stop")),
-            ExtensionResultItem(icon='images/icon.png', name="Annotate Task", on_enter=SetUserQueryAction(f"{self.INTERNAL_ANNOTATE_KEYWORD} {uuid} ")),
             ExtensionResultItem(icon='images/icon.png', name="Delete Task", on_enter=RunScriptAction(f"task rc.confirmation=off {uuid} delete")),
         ]
         if is_tool_installed('taskopen'):
