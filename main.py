@@ -1,3 +1,4 @@
+
 import logging
 import subprocess
 import json
@@ -56,29 +57,16 @@ class AddTaskListener:
             )
         ])
 
+# --- Replace the existing ListTasksListener with this one for a quick test ---
 class ListTasksListener:
     """
-    Handles listing tasks and now directly generates the action menu for each task.
-    (This is the core of the fix)
+    A temporary, simplified version to test if task LISTING is the problem.
+    This version disables the action menu.
     """
-    def _get_action_menu(self, uuid, extension):
-        """Helper function to generate the list of actions for a given UUID."""
-        actions = [
-            ExtensionResultItem(icon='images/icon.png', name="Mark as Done", description=f"Mark task {uuid[:8]}... as done", on_enter=RunScriptAction(f"task {uuid} done")),
-            ExtensionResultItem(icon='images/icon.png', name="Start Task", description=f"Start tracking task {uuid[:8]}...", on_enter=RunScriptAction(f"task {uuid} start")),
-            ExtensionResultItem(icon='images/icon.png', name="Stop Task", description=f"Stop tracking task {uuid[:8]}...", on_enter=RunScriptAction(f"task {uuid} stop")),
-            ExtensionResultItem(icon='images/icon.png', name="Annotate Task", description=f"Add a note to task {uuid[:8]}...", on_enter=SetUserQueryAction(f"{extension.preferences['annotate_kw']} {uuid} ")),
-            ExtensionResultItem(icon='images/icon.png', name="Delete Task", description=f"Permanently delete task {uuid[:8]}...", on_enter=RunScriptAction(f"task rc.confirmation=off {uuid} delete")),
-        ]
-        
-        if is_tool_installed('taskopen'):
-            actions.append(ExtensionResultItem(icon='images/icon.png', name="Open Task", description=f"Open task {uuid[:8]}... with taskopen", on_enter=RunScriptAction(f"taskopen {uuid}")))
-        
-        return actions
-
     def on_event(self, event, extension):
         user_filter = event.get_argument() or "+READY"
         try:
+            # We are using the command that we know works.
             command = ['task', user_filter, 'rc.verbose=nothing', 'export']
             result = subprocess.run(command, capture_output=True, text=True, check=True)
             tasks = json.loads(result.stdout)
@@ -91,17 +79,15 @@ class ListTasksListener:
                 if not isinstance(task, dict): continue
                 try:
                     description = task['description']
-                    uuid = task['uuid']
                     display_text = (description[:47] + '...') if len(description) > 50 else description
                     
-                    # For each task, create an item. Its 'on_enter' action will be
-                    # to render the list of actions we generate for it.
+                    # For this test, we are going back to a simple HideWindowAction.
                     items.append(
                         ExtensionResultItem(
                             icon='images/icon.png',
                             name=display_text,
-                            description="Press Enter for actions...",
-                            on_enter=RenderResultListAction(self._get_action_menu(uuid, extension))
+                            description="Test: This will just close Ulauncher",
+                            on_enter=HideWindowAction()
                         )
                     )
                 except KeyError:
@@ -109,7 +95,7 @@ class ListTasksListener:
             
             return RenderResultListAction(items)
         except Exception as e:
-            logger.error("An unexpected error occurred in ListTasksListener: %s", e, exc_info=True)
+            logger.error("An unexpected error occurred in the TEST ListTasksListener: %s", e, exc_info=True)
             return show_error_item("An Unexpected Error Occurred", str(e))
 
 class AnnotateTaskListener:
