@@ -56,11 +56,7 @@ class KeywordEventListener:
             if keyword == extension.preferences['add_kw']:
                 return self.handle_add_task(argument)
 
-            # Route 2: Handle the internal annotation keyword
-            elif keyword == self.INTERNAL_ANNOTATE_KEYWORD:
-                return self.handle_annotate_task(argument)
-
-            # Route 3: List tasks OR show the action menu
+            # Route 2: List tasks OR show the action menu
             elif keyword == extension.preferences['list_kw']:
                 if UUID_REGEX.match(argument.strip()):
                     return self.show_action_menu(argument.strip())
@@ -82,16 +78,6 @@ class KeywordEventListener:
             ExtensionResultItem(icon='images/icon.png', name=f"Add task: '{description}'", on_enter=RunScriptAction(command))
         ])
 
-    def handle_annotate_task(self, query):
-        """Logic to annotate an existing task."""
-        if not query or ' ' not in query:
-            return show_error_item("Usage: <select annotate> <annotation text>")
-        uuid, annotation_text = query.split(' ', 1)
-        safe_annotation = shlex.quote(annotation_text)
-        command = f"task {uuid} annotate {safe_annotation}"
-        return RenderResultListAction([
-            ExtensionResultItem(icon='images/icon.png', name=f"Add annotation to task {uuid[:8]}...", description=f"Note: '{annotation_text}'", on_enter=RunScriptAction(command))
-        ])
 
     def handle_list_tasks(self, user_filter, extension):
         """Logic to fetch and display the list of tasks."""
@@ -129,7 +115,6 @@ class KeywordEventListener:
             ExtensionResultItem(icon='images/icon.png', name="Mark as Done", on_enter=RunScriptAction(f"task {uuid} done")),
             ExtensionResultItem(icon='images/icon.png', name="Start Task", on_enter=RunScriptAction(f"task {uuid} start")),
             ExtensionResultItem(icon='images/icon.png', name="Stop Task", on_enter=RunScriptAction(f"task {uuid} stop")),
-            ExtensionResultItem(icon='images/icon.png', name="Annotate Task", on_enter=SetUserQueryAction(f"{self.INTERNAL_ANNOTATE_KEYWORD} {uuid} ")),
             ExtensionResultItem(icon='images/icon.png', name="Delete Task", on_enter=RunScriptAction(f"task rc.confirmation=off {uuid} delete")),
         ]
         if is_tool_installed('taskopen'):
