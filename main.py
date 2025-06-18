@@ -55,10 +55,6 @@ class KeywordEventListener:
             if keyword == extension.preferences['add_kw']:
                 return self.handle_add_task(argument)
 
-            # Route 2: Annotate a task
-            elif keyword == extension.preferences['annotate_kw']:
-                return self.handle_annotate_task(argument)
-
             # Route 3: List tasks OR show the action menu
             elif keyword == extension.preferences['list_kw']:
                 # If the argument is a UUID, show the action menu.
@@ -134,7 +130,7 @@ class KeywordEventListener:
             ExtensionResultItem(icon='images/icon.png', name="Start Task", on_enter=RunScriptAction(f"task {uuid} start")),
             ExtensionResultItem(icon='images/icon.png', name="Stop Task", on_enter=RunScriptAction(f"task {uuid} stop")),
             ExtensionResultItem(icon='images/icon.png', name="Annotate Task", on_enter=SetUserQueryAction(f"{preferences['annotate_kw']} {uuid} ")),
-            ExtensionResultItem(icon='images/gavel.png', name="Delete Task", on_enter=RunScriptAction(f"task rc.confirmation=off {uuid} delete")),
+            ExtensionResultItem(icon='images/icon.png', name="Delete Task", on_enter=RunScriptAction(f"task rc.confirmation=off {uuid} delete")),
         ]
         if is_tool_installed('taskopen'):
             actions.append(ExtensionResultItem(icon='images/icon.png', name="Open Task", on_enter=RunScriptAction(f"taskopen {uuid}")))
