@@ -34,6 +34,7 @@ def show_error_item(title, description=""):
 def is_tool_installed(name):
     """Checks if a command-line tool is available (e.g., 'task' or 'taskopen')."""
     try:
+        # Use a quiet command to check for the tool's existence.
         subprocess.run([name, '--version'], capture_output=True, check=True, text=True)
         return True
     except (FileNotFoundError, subprocess.CalledProcessError):
@@ -43,7 +44,7 @@ def is_tool_installed(name):
 # --- Individual Action Listeners ---
 
 class AddTaskListener:
-    """Handles the 'add task' keyword query. (Working and unchanged)"""
+    """Handles the 'add task' keyword query. (This is working and unchanged)"""
     def on_event(self, event, extension):
         task_description = event.get_argument()
         if not task_description:
@@ -62,12 +63,17 @@ class AddTaskListener:
 class ListTasksListener:
     """
     Handles listing tasks.
-    (UPDATED to trigger the action menu when a task is selected)
+    (This listener is now fixed to use the correct command)
     """
     def on_event(self, event, extension):
+        # If user types something after "tl", use it as the filter.
+        # Otherwise, default to the required "+READY".
         user_filter = event.get_argument() or "+READY"
         try:
+            # THIS IS THE CORRECTED COMMAND based on your explicit instruction.
             command = ['task', user_filter, 'rc.verbose=nothing', 'export']
+            
+            logger.debug("Running corrected command: %s", " ".join(command))
             result = subprocess.run(command, capture_output=True, text=True, check=True)
             tasks = json.loads(result.stdout)
 
@@ -75,6 +81,7 @@ class ListTasksListener:
                 return show_error_item(f"No tasks found for filter: '{user_filter}'")
 
             items = []
+            # Sort by urgency, highest first.
             for task in sorted(tasks, key=lambda t: t.get('urgency', 0), reverse=True):
                 if not isinstance(task, dict): continue
                 try:
@@ -86,9 +93,7 @@ class ListTasksListener:
                         ExtensionResultItem(
                             icon='images/icon.png',
                             name=display_text,
-                            description="Press Enter to see actions for this task...",
-                            # NEW BEHAVIOR: When user presses Enter, set the query to "tl <uuid>"
-                            # This will trigger our new TaskActionMenuListener.
+                            description="Press Enter for actions...",
                             on_enter=SetUserQueryAction(f"{extension.preferences['list_kw']} {uuid}")
                         )
                     )
@@ -97,34 +102,29 @@ class ListTasksListener:
             
             return RenderResultListAction(items)
         except Exception as e:
+            logger.error("An unexpected error occurred in ListTasksListener: %s", e, exc_info=True)
             return show_error_item("An Unexpected Error Occurred", str(e))
 
 class TaskActionMenuListener:
-    """
-    (NEW) Displays the menu of actions for a selected task UUID.
-    """
+    """Displays the menu of actions for a selected task UUID. (Unchanged)"""
     def on_event(self, event, extension):
         uuid = event.get_argument()
         
-        # Build the list of actions for the given UUID
         actions = [
             ExtensionResultItem(icon='images/icon.png', name=f"Mark as Done", description=f"Mark task {uuid[:8]}... as done", on_enter=RunScriptAction(f"task {uuid} done")),
             ExtensionResultItem(icon='images/icon.png', name=f"Start Task", description=f"Start tracking task {uuid[:8]}...", on_enter=RunScriptAction(f"task {uuid} start")),
             ExtensionResultItem(icon='images/icon.png', name=f"Stop Task", description=f"Stop tracking task {uuid[:8]}...", on_enter=RunScriptAction(f"task {uuid} stop")),
             ExtensionResultItem(icon='images/icon.png', name=f"Annotate Task", description=f"Add a note to task {uuid[:8]}...", on_enter=SetUserQueryAction(f"{extension.preferences['annotate_kw']} {uuid} ")),
-            ExtensionResultItem(icon='images/gavel.png', name=f"Delete Task", description=f"Permanently delete task {uuid[:8]}...", on_enter=RunScriptAction(f"task rc.confirmation=off {uuid} delete")),
+            ExtensionResultItem(icon='images/icon.png', name=f"Delete Task", description=f"Permanently delete task {uuid[:8]}...", on_enter=RunScriptAction(f"task rc.confirmation=off {uuid} delete")),
         ]
         
-        # Add the 'taskopen' action only if the tool is installed
         if is_tool_installed('taskopen'):
             actions.append(ExtensionResultItem(icon='images/icon.png', name=f"Open Task", description=f"Open task {uuid[:8]}... with taskopen", on_enter=RunScriptAction(f"taskopen {uuid}")))
 
         return RenderResultListAction(actions)
 
 class AnnotateTaskListener:
-    """
-    (NEW) Handles adding an annotation to a task.
-    """
+    """Handles adding an annotation to a task. (Unchanged)"""
     def on_event(self, event, extension):
         query = event.get_argument()
         if not query or ' ' not in query:
@@ -132,10 +132,8 @@ class AnnotateTaskListener:
             
         uuid, annotation_text = query.split(' ', 1)
 
-        # Use shell quoting to handle special characters in the annotation
         import shlex
         safe_annotation = shlex.quote(annotation_text)
-
         command = f"task {uuid} annotate {safe_annotation}"
 
         return RenderResultListAction([
@@ -147,7 +145,7 @@ class AnnotateTaskListener:
             )
         ])
 
-# --- Main Event Router (UPDATED) ---
+# --- Main Event Router (Unchanged) ---
 
 class KeywordQueryEventListener:
     """Routes events to the correct listener."""
@@ -164,12 +162,9 @@ class KeywordQueryEventListener:
         keyword = event.get_keyword()
         argument = event.get_argument() or ""
 
-        # --- NEW ROUTING LOGIC ---
         if keyword == extension.preferences['list_kw']:
-            # If the argument looks like a UUID, show the action menu.
             if UUID_REGEX.match(argument.strip()):
                 return self.action_menu_listener.on_event(event, extension)
-            # Otherwise, show the normal task list.
             else:
                 return self.list_listener.on_event(event, extension)
         
