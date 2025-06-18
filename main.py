@@ -9,7 +9,7 @@ from ulauncher.api.shared.action.HideWindowAction import HideWindowAction
 from ulauncher.api.shared.action.RunScriptAction import RunScriptAction
 
 # Set up logging so we can see what's happening in the Ulauncher logs.
-logging.basicConfig(level=logging.DEBUG) # Set level to DEBUG to see all messages
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # --- Helper Functions ---
@@ -38,7 +38,7 @@ def is_taskwarrior_installed():
 # --- Individual Action Listeners ---
 
 class AddTaskListener:
-    """Handles the 'add task' keyword query. (Working and unchanged)"""
+    """Handles the 'add task' keyword query. (This is working and unchanged)"""
     def on_event(self, event, extension):
         task_description = event.get_argument()
         if not task_description:
@@ -57,42 +57,41 @@ class AddTaskListener:
 class ListTasksListener:
     """
     Handles the 'list tasks' keyword query.
-    (This version is rewritten to be highly defensive and add verbose logging)
+    (This version is updated to use your specific command format)
     """
     def on_event(self, event, extension):
-        filter_args = event.get_argument() or "pending"
+        # If user types something after "tl", use it as the filter.
+        # Otherwise, default to the user-provided "+READY".
+        user_filter = event.get_argument() or "+READY"
+
         try:
-            command = ['task', filter_args, 'export']
-            logger.debug("Running command: %s", " ".join(command))
+            # THIS IS THE CORRECTED COMMAND based on your feedback.
+            command = ['task', user_filter, 'rc.verbose=nothing', 'export']
+            
+            logger.debug("Running corrected command: %s", " ".join(command))
             result = subprocess.run(command, capture_output=True, text=True, check=True)
             raw_json = result.stdout
-            
-            logger.debug("Received raw output from Taskwarrior: %s", raw_json)
 
             if not raw_json.strip():
-                return show_error_item(f"No tasks found matching: '{filter_args}'", "Taskwarrior returned empty output.")
+                return show_error_item(f"No tasks found for filter: '{user_filter}'", "Taskwarrior returned empty output.")
 
             tasks = json.loads(raw_json)
 
-            # Defensive Check: Ensure 'tasks' is a list.
             if not isinstance(tasks, list):
                 logger.error("Taskwarrior output was not a JSON list. Type is: %s", type(tasks))
                 return show_error_item("Error parsing tasks", "Received unexpected data format from Taskwarrior.")
 
             if not tasks:
-                return show_error_item(f"No tasks found matching: '{filter_args}'")
+                return show_error_item(f"No tasks found for filter: '{user_filter}'")
 
             items = []
             for task in tasks:
-                # Defensive Check: Ensure 'task' is a dictionary.
                 if not isinstance(task, dict):
                     logger.warning("Skipping item in task list because it is not a dictionary: %s", task)
                     continue
 
                 try:
                     description = task['description']
-                    uuid = task['uuid']  # Get uuid for future use
-                    
                     display_text = (description[:47] + '...') if len(description) > 50 else description
                     
                     items.append(
@@ -102,21 +101,12 @@ class ListTasksListener:
                             on_enter=HideWindowAction()
                         )
                     )
-                except KeyError as e:
-                    logger.error("A task object was missing a required key: %s. Task object: %s", e, task)
-                    continue # Skip this malformed task and proceed to the next one
-            
-            if not items:
-                return show_error_item("Finished processing, but no valid tasks found.")
+                except KeyError:
+                    logger.error("A task object was missing the 'description' key. Task object: %s", task)
+                    continue
             
             return RenderResultListAction(items)
         
-        except subprocess.CalledProcessError as e:
-            logger.error("The 'task' command failed with an error: %s", e)
-            return show_error_item("Taskwarrior Command Failed", str(e))
-        except json.JSONDecodeError as e:
-            logger.error("Failed to decode JSON from Taskwarrior: %s", e)
-            return show_error_item("Error Reading Task Data", "Taskwarrior returned invalid JSON.")
         except Exception as e:
             logger.error("An unexpected error occurred in ListTasksListener: %s", e, exc_info=True)
             return show_error_item("An Unexpected Error Occurred", str(e))
