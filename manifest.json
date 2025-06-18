@@ -20,6 +20,12 @@
       "type": "keyword",
       "name": "List Tasks",
       "default_value": "tl"
+    },
+    {
+      "id": "annotate_kw",
+      "type": "keyword",
+      "name": "Annotate Task",
+      "default_value": "ta"
     }
   ]
 }
